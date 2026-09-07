@@ -32,10 +32,11 @@ prowgen:
 resources:
   '*':
     limits:
-      memory: 8Gi
+      cpu: "3"
+      memory: 6Gi
     requests:
-      cpu: 100m
-      memory: 200Mi
+      cpu: "3"
+      memory: 6Gi
 tests:
 - as: pr-check-check-coverage
   commands: |
