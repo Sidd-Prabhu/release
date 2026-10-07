@@ -464,6 +464,43 @@ restart_nodes () {
   echo "Restarted all nodes after initial boot"
 }
 
+restart_bootstrap () {
+  local bootstrap_name="${LEASED_RESOURCE}-bootstrap"
+  local bootstrap_ip=$(virsh domifaddr "${bootstrap_name}" 2>/dev/null | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | head -n 1 || true)
+  local ssh_key="~/.ssh/id_rsa_new"
+  local timeout=600  # 10 minutes (in seconds)
+  local interval=15  # poll interval
+  local elapsed=0
+
+  echo "INFO: Monitoring accessibility of bootstrap VM: ${bootstrap_name} (IP: ${bootstrap_ip:-N/A})..."
+
+  while [ $elapsed -lt $timeout ]; do
+    local state
+    state=$(virsh domstate "$bootstrap_name" 2>/dev/null | tr -d '\r')
+
+    if [ "$state" != "running" ]; then
+      echo "WARNING: VM ${bootstrap_name} is in state '${state}' (expected 'running')."
+    else
+      if [ -n "$bootstrap_ip" ]; then
+        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 \
+         -i "$ssh_key" "core@${bootstrap_ip}" \
+         "systemctl is-failed --quiet node-image-pull.service" 2>/dev/null; then
+          echo "INFO: Bootstrap VM ${bootstrap_name} is responsive and reachable via SSH."
+          virsh stop "$bootstrap_name"
+          sleep 10
+          virsh start "$bootstrap_name"
+        fi
+      fi
+    fi
+
+    echo "INFO: Bootstrap VM ${bootstrap_name} not yet accessible (${elapsed}/${timeout}s elapsed)..."
+    sleep $interval
+    elapsed=$((elapsed + interval))
+  done
+    echo "INFO: Restart command sent to ${bootstrap_name}. Resuming check..."
+  fi
+}
+
 clone_volume () {
   if [ -z $1 ]; then
     echo "Must specify a name for the cloned volume..."
@@ -617,6 +654,7 @@ if [ "$INSTALLER_TYPE" == "agent" ]; then
   restart_nodes &
   ${OCPINSTALL} --dir "${INSTALL_DIR}" agent wait-for bootstrap-complete --log-level=debug &
 else
+  restart_bootstrap &
   ${OCPINSTALL} --dir "${INSTALL_DIR}" wait-for bootstrap-complete &
 fi
 
