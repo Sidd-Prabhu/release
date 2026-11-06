@@ -153,10 +153,13 @@ if [[ -z "${LEASED_RESOURCE}" ]]; then
 fi
 
 # Temporary configuration for PowerVS 5.1 runs during interim migration until DHCP set-up across remaining regions.
+# Overrides Lease to use syd04 in case of 5.1 directly
 # Overrides default 's1022' to 's922' to avoid capacity and resource constraints in the target workspace.
 # Remove this change after required set up is completed and runs are moved back to default
 if [[ "${BRANCH}" == "5.1" && ( -z "${POWERVS_SYS_TYPE:-}" || "${POWERVS_SYS_TYPE}" == "s1022" ) ]]; then
   POWERVS_SYS_TYPE="s922"
+  echo "Overriding LEASED_RESOURCE=${LEASED_RESOURCE} with POWERVS_ZONE_OVERRIDE=syd04"
+  LEASED_RESOURCE="syd04"
 fi
 
 PLATFORM_ARGS_COMPUTE=( "sysType" "${POWERVS_SYS_TYPE}" )
